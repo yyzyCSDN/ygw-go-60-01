@@ -11,11 +11,11 @@ import (
 )
 
 // Store 保存回调级投递位点。current 是已确认位点，snapshots 是
-// 持久化快照；Acknowledge 同时更新两者，保证确认即推进。
+// 落盘快照；Acknowledge 同时推进 current 与 snapshots，确认即位点
+// 前进，重启后按 snapshots 恢复，已投递事件不会被重复投递。
 type Store struct {
 	mu        sync.Mutex
 	current   map[string]uint64
-	pending   map[string]uint64
 	snapshots map[string]model.OffsetSnapshot
 }
 
@@ -23,13 +23,14 @@ type Store struct {
 func NewStore() *Store {
 	return &Store{
 		current:   make(map[string]uint64),
-		pending:   make(map[string]uint64),
 		snapshots: make(map[string]model.OffsetSnapshot),
 	}
 }
 
-// Acknowledge 确认某回调已投递到 seq。位点只前进不回退：
-// 迟到的旧确认不会把位点拉回去。
+// Acknowledge 确认某回调已投递到 seq，立即推进位点：current 与
+// snapshots 同步前进，使下一次 Sweep 从 seq 之后切窗、重启落盘
+// 快照也反映已确认序号。位点只前进不回退：迟到的旧确认（seq 不
+// 大于当前位点）是空操作，不会把位点拉回去。
 func (s *Store) Acknowledge(callbackID string, seq uint64) error {
 	if callbackID == "" {
 		return errors.New("callback id is required")
@@ -42,7 +43,8 @@ func (s *Store) Acknowledge(callbackID string, seq uint64) error {
 	if seq <= s.current[callbackID] {
 		return nil
 	}
-	s.pending[callbackID] = seq
+	s.current[callbackID] = seq
+	s.snapshots[callbackID] = model.NewOffsetSnapshot(callbackID, seq)
 	return nil
 }
 

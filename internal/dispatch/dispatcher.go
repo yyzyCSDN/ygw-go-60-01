@@ -139,6 +139,13 @@ func (d *Dispatcher) deliverOne(ctx context.Context, event *model.Event, cb *mod
 	if result.Success() {
 		d.dedup.PruneThrough(cb.ID, event.Seq)
 		d.clearRetry(event.ID, cb.ID)
+		// 投递成功后立即确认位点：current 与快照同步推进到 seq，
+		// 下一次 Sweep 从 seq 之后切窗；重启落盘快照反映已确认序号，
+		// 不会把已投递事件再投一遍。Acknowledge 只前进不回退，
+		// 因此窗口内乱序到达的确认安全。
+		if err := d.offsets.Acknowledge(cb.ID, event.Seq); err != nil {
+			d.logger.Error("acknowledge offset failed", "callback", cb.ID, "seq", event.Seq, "error", err)
+		}
 		task.MarkDelivered(d.clock.Now())
 		d.metrics.RecordDelivered()
 		d.health.Record(cb.ID, true, "delivered", d.clock.Now().Unix())
