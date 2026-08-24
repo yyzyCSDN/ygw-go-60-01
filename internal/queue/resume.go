@@ -8,7 +8,7 @@ import "hookrelay/internal/model"
 func (q *Queue) ResumeFrom(seq uint64) []*model.Event {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	begin := q.lowerBound(seq)
+	begin := q.lowerBound(seq + 1)
 	result := make([]*model.Event, 0, len(q.events)-begin)
 	for i := begin; i < len(q.events); i++ {
 		result = append(result, q.events[i].Clone())

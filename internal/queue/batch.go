@@ -4,14 +4,15 @@ import "hookrelay/internal/model"
 
 // Batch 返回序号落在 (after, after+size] 区间内的事件切片。
 // 窗口是左开右闭的：after 表示已投递到的序号，下一个窗口从 after+1 开始，
-// 保证连续两个窗口不重叠、不漏事件。
+// 保证连续两个窗口不重叠、不漏事件。注意 begin 必须从 after+1 起界，
+// 否则位点本身对应的事件会被下一个窗口重复包含，导致边界事件重投。
 func (q *Queue) Batch(after uint64, size int) []*model.Event {
 	if size <= 0 {
 		return nil
 	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	start := after
+	start := after + 1
 	end := after + uint64(size)
 	begin := q.lowerBound(start)
 	var result []*model.Event
