@@ -38,12 +38,13 @@ func NewCallbackClientWithTransport(transport http.RoundTripper) *CallbackClient
 }
 
 // Send 执行一次回调请求，返回响应体与状态码。无论成功失败，
-// 响应连接都会被关闭。
+// 响应体都会被完整读取并关闭，确保底层连接归还连接池而不泄漏。
 func (c *CallbackClient) Send(ctx context.Context, req *http.Request) ([]byte, int, error) {
 	resp, err := c.httpClient.Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, 0, err
 	}
+	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, resp.StatusCode, err
