@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HookRelay 投递监控</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: "Segoe UI", system-ui, sans-serif; margin: 2rem auto; max-width: 960px; padding: 0 1rem; }
+    h1 { font-size: 1.4rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin: 1rem 0; }
+    .card { border: 1px solid #ccc; border-radius: 8px; padding: 1rem; }
+    .card .value { font-size: 1.8rem; font-weight: 600; }
+    .card .label { color: #777; font-size: .85rem; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: .45rem .6rem; text-align: left; font-size: .9rem; }
+    .badge { display: inline-block; padding: .15rem .55rem; border-radius: 999px; font-size: .78rem; }
+    .badge.ok { background: #d9f2dc; color: #186a27; }
+    .badge.warn { background: #fff2cc; color: #7a5c00; }
+    .error { color: #b00020; }
+    #status { color: #777; font-size: .85rem; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>HookRelay 投递监控</h1>
+  <p id="status">连接中…</p>
+  <div class="grid">
+    <div class="card"><div class="value" id="queueDepth">-</div><div class="label">队列深度</div></div>
+    <div class="card"><div class="value" id="callbacks">-</div><div class="label">回调注册</div></div>
+    <div class="card"><div class="value" id="deadLetters">-</div><div class="label">死信</div></div>
+    <div class="card"><div class="value" id="pendingRetries">-</div><div class="label">待重试</div></div>
+    <div class="card"><div class="value" id="dedupKeys">-</div><div class="label">去重键</div></div>
+  </div>
+  <h2>投递位点</h2>
+  <table>
+    <thead><tr><th>回调 ID</th><th>已确认序号</th></tr></thead>
+    <tbody id="offsetRows"><tr><td colspan="2">暂无数据</td></tr></tbody>
+  </table>
+  <script>
+    const fmt = (v) => v === undefined || v === null ? "-" : v;
+    async function refresh() {
+      const status = document.getElementById("status");
+      try {
+        const resp = await fetch("/api/v1/stats");
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        const data = await resp.json();
+        document.getElementById("queueDepth").textContent = fmt(data.queue_depth);
+        document.getElementById("callbacks").textContent = fmt(data.callbacks);
+        document.getElementById("deadLetters").textContent = fmt(data.dead_letters);
+        document.getElementById("pendingRetries").textContent = fmt(data.pending_retries);
+        document.getElementById("dedupKeys").textContent = fmt(data.dedup_keys);
+        const rows = document.getElementById("offsetRows");
+        rows.innerHTML = "";
+        const offsets = data.offsets || {};
+        const keys = Object.keys(offsets);
+        if (!keys.length) {
+          rows.innerHTML = '<tr><td colspan="2">暂无数据</td></tr>';
+        } else {
+          for (const id of keys) {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${escapeHtml(id)}</td><td>${fmt(offsets[id])}</td>`;
+            rows.appendChild(tr);
+          }
+        }
+        status.textContent = "最后刷新：" + new Date(data.now).toLocaleString();
+        status.className = "";
+      } catch (err) {
+        status.textContent = "刷新失败：" + err.message;
+        status.className = "error";
+      }
+    }
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[ch]));
+    }
+    refresh();
+    setInterval(refresh, 2000);
+  </script>
+</body>
+</html>
