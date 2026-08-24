@@ -177,7 +177,7 @@ func (d *Dispatcher) handleFailure(event *model.Event, cb *model.Callback, resul
 	d.attempts[key] = attempt
 	task := d.taskFor(event.ID, cb.ID)
 	if d.retry.ShouldRetry(attempt) {
-		next := d.retry.NextAttemptAt(1, d.clock.Now())
+		next := d.retry.NextAttemptAt(attempt, d.clock.Now())
 		d.retryDue[key] = retryEntry{callbackID: cb.ID, nextAt: next}
 		task.MarkRetrying(next, reason, d.clock.Now())
 		d.metrics.RecordRetried()

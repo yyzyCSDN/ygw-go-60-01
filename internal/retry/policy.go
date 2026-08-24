@@ -39,13 +39,14 @@ func NewPolicy(base, max time.Duration, maxAttempts int) *Policy {
 // NextDelay 返回第 attempt 次重试（attempt 从 1 开始）的退避间隔。
 // 首次重试返回 Base，之后按 Factor 指数增长并封顶到 Max。
 func (p *Policy) NextDelay(attempt int) time.Duration {
-	if attempt <= 0 {
+	if attempt <= 0 || p.Base <= 0 {
 		return 0
 	}
-	if p.Base <= 0 {
-		return 0
+	delay := float64(p.Base) * math.Pow(p.Factor, float64(attempt-1))
+	if p.Max > 0 && delay > float64(p.Max) {
+		delay = float64(p.Max)
 	}
-	return 0
+	return time.Duration(delay)
 }
 
 // TotalAttempts 返回允许的总尝试次数。
