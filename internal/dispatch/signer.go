@@ -19,18 +19,18 @@ import (
 type Signer struct {
 	clock  clock.Clock
 	secret []byte
-	stamp  time.Time
 }
 
 // NewSigner 创建签名器。
 func NewSigner(source clock.Clock, secret string) *Signer {
-	return &Signer{clock: source, secret: []byte(secret), stamp: source.Now()}
+	return &Signer{clock: source, secret: []byte(secret)}
 }
 
 // Sign 基于最新时间戳与请求体生成签名，返回签名与签名使用的时间戳。
-// 每次调用都重新读取时钟，物理时钟回拨或长时间运行后仍使用当前时间。
+// 每次调用都重新读取时钟，物理时钟回拨或长时间运行后仍使用当前时间，
+// 避免复用构造时缓存的旧时间戳导致下游时效校验失败。
 func (s *Signer) Sign(body []byte) (string, time.Time) {
-	stamp := s.stamp
+	stamp := s.clock.Now()
 	mac := hmac.New(sha256.New, s.secret)
 	mac.Write([]byte(strconv.FormatInt(stamp.Unix(), 10)))
 	mac.Write(body)
